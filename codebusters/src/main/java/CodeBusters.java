@@ -1,6 +1,14 @@
 import java.awt.geom.Line2D;
 import java.awt.geom.Point2D;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Random;
+import java.util.Scanner;
 import java.util.stream.Collectors;
 
 /**
@@ -17,15 +25,6 @@ class Player {
 
         GameState gameState = new GameState(myTeamId == 0 ? 0 : 16000, myTeamId == 0 ? 0 : 9000, bustersPerPlayer,
                 ghostCount);
-
-        // Create squads of busters based on buster count per players
-        List<Squad> squads = getSquads(gameState, myTeamId);
-
-        /*for (int i = 0; i < squads.size(); i++) {
-            System.err.println("S" + i + " is " + squads.get(i));
-        }*/
-
-        gameState.setSquads(squads);
 
         // game loop
         while (true) {
@@ -50,100 +49,16 @@ class Player {
                 }
             }
 
-            for (int i = 0; i < gameState.squads.size(); i++) {
-                Squad squad = gameState.squads.get(i);
-                if (squad.needToUpdateObjective(gameState)) {
-                    squad.updateObjective(gameState);
+            gameState.myBusters.keySet().stream().sorted().forEach(busterId -> {
+                Buster buster = gameState.myBusters.get(busterId);
+                if (buster.isActive()) {
+                    System.out.println(buster.getObjective(gameState));
+                } else {
+                    System.out.println("MOVE " + buster.x + " " + buster.y + " (Stunned)");
                 }
-
-                squad.members.keySet().stream().sorted().forEach(
-                        busterId -> {
-                            Buster buster = squad.members.get(busterId);
-                            if (buster.isActive()) {
-                                if (buster.canParticipateInObjective(squad)) {
-                                    System.out.println(squad.getSquadObjective());
-                                } else {
-                                    System.out.println(buster.getPersonnalObjective(gameState, squad));
-                                }
-                            } else {
-                                System.out.println("MOVE " + buster.x + " " + buster.y + " (Stunned)");
-                            }
-                        }
-                );
-            }
+            });
         }
     }
-
-    private static List<Squad> getSquads(GameState gameState, int myTeamId) {
-        List<Squad> squads = new ArrayList<>();
-        int busterId = myTeamId * gameState.busterCount;
-        Squad squad;
-        int[] stealObjective = gameState.isBaseTopLeft() ? new int[]{14000, 8000} : new int[]{1000, 1000};
-        switch (gameState.busterCount) {
-            case 2:
-                squad = new Squad(0, AIParameters.SQUAD_TYPE_SEEKER);
-                squad.addMember(new Buster(busterId++, gameState.baseX, gameState.baseY, 0, 0, 0));
-                squads.add(squad);
-                squad = new DestroyerSquad(1, stealObjective);
-                squad.addMember(new Buster(busterId++, gameState.baseX, gameState.baseY, 0, 0, 0));
-                squads.add(squad);
-                break;
-            case 3:
-                squad = new Squad(0, AIParameters.SQUAD_TYPE_SEEKER);
-                squad.addMember(new Buster(busterId++, gameState.baseX, gameState.baseY, 0, 0, 0));
-                squads.add(squad);
-                squad = new Squad(1, AIParameters.SQUAD_TYPE_SEEKER);
-                squad.addMember(new Buster(busterId++, gameState.baseX, gameState.baseY, 0, 0, 0));
-                squads.add(squad);
-                squad = new DestroyerSquad(2, stealObjective);
-                squad.addMember(new Buster(busterId++, gameState.baseX, gameState.baseY, 0, 0, 0));
-                squads.add(squad);
-                break;
-            case 4:
-                squad = new Squad(0, AIParameters.SQUAD_TYPE_SEEKER);
-                squad.addMember(new Buster(busterId++, gameState.baseX, gameState.baseY, 0, 0, 0));
-                squad.addMember(new Buster(busterId++, gameState.baseX, gameState.baseY, 0, 0, 0));
-                squads.add(squad);
-                squad = new Squad(1, AIParameters.SQUAD_TYPE_SEEKER);
-                squad.addMember(new Buster(busterId++, gameState.baseX, gameState.baseY, 0, 0, 0));
-                squads.add(squad);
-                squad = new DestroyerSquad(2, stealObjective);
-                squad.addMember(new Buster(busterId++, gameState.baseX, gameState.baseY, 0, 0, 0));
-                squads.add(squad);
-                break;
-            case 5:
-                squad = new Squad(0, AIParameters.SQUAD_TYPE_SEEKER);
-                squad.addMember(new Buster(busterId++, gameState.baseX, gameState.baseY, 0, 0, 0));
-                squad.addMember(new Buster(busterId++, gameState.baseX, gameState.baseY, 0, 0, 0));
-                squads.add(squad);
-                squad = new Squad(1, AIParameters.SQUAD_TYPE_SEEKER);
-                squad.addMember(new Buster(busterId++, gameState.baseX, gameState.baseY, 0, 0, 0));
-                squad.addMember(new Buster(busterId++, gameState.baseX, gameState.baseY, 0, 0, 0));
-                squads.add(squad);
-                squad = new DestroyerSquad(2, stealObjective);
-                squad.addMember(new Buster(busterId++, gameState.baseX, gameState.baseY, 0, 0, 0));
-                squads.add(squad);
-                break;
-        }
-
-        return squads;
-    }
-}
-
-class AIParameters {
-    public static int SQUAD_COUNT = 2;
-
-    public static Map<Integer, int[]> SQUAD_REPARTITION_BY_BUSTER_COUNT = new HashMap<>();
-
-    static {
-        SQUAD_REPARTITION_BY_BUSTER_COUNT.put(2, new int[]{0, 1});
-        SQUAD_REPARTITION_BY_BUSTER_COUNT.put(3, new int[]{0, 1, 1});
-        SQUAD_REPARTITION_BY_BUSTER_COUNT.put(4, new int[]{0, 0, 1, 1});
-        SQUAD_REPARTITION_BY_BUSTER_COUNT.put(5, new int[]{0, 0, 1, 1, 1});
-    }
-
-    public static int SQUAD_TYPE_SEEKER = 1;
-    public static int SQUAD_TYPE_DESTROYER = 2;
 }
 
 class GameParameters {
@@ -161,32 +76,26 @@ class GameParameters {
 
     public static int STUN_MAX_DISTANCE = 1760;
 
-    public static Map<Integer, List<List<int[]>>> POSITIONS_FROM_TOP_LEFT = new HashMap<>();
-
-    static {
-        POSITIONS_FROM_TOP_LEFT.put(2, Arrays.asList(
-                Arrays.asList(
-                        new int[]{3111, 1555},
-                        new int[]{6222, 1800},
-                        new int[]{6222, 1555},
-                        new int[]{9333, 1555},
-                        new int[]{9333, 3500},
-                        new int[]{12444, 4666},
-                        new int[]{12444, 1555},
-                        new int[]{14445, 1555},
-                        new int[]{14445, 4666},
-                        new int[]{14445, 7445}),
-                Arrays.asList(
-                        new int[]{1555, 3111},
-                        new int[]{4300, 3111},
-                        new int[]{1555, 6222},
-                        new int[]{1555, 7745},
-                        new int[]{4666, 6222},
-                        new int[]{7777, 6222},
-                        new int[]{7777, 7745},
-                        new int[]{10888, 7745},
-                        new int[]{10102, 7745})));
-    }
+    public static List<int[]> POSITIONS_TO_EXPLORE = Arrays.asList(
+            new int[] { 3111, 1555 },
+            new int[] { 6222, 1800 },
+            new int[] { 6222, 1555 },
+            new int[] { 9333, 1555 },
+            new int[] { 9333, 3500 },
+            new int[] { 12444, 4666 },
+            new int[] { 12444, 1555 },
+            new int[] { 14445, 1555 },
+            new int[] { 14445, 4666 },
+            new int[] { 14445, 7445 },
+            new int[] { 1555, 3111 },
+            new int[] { 4300, 3111 },
+            new int[] { 1555, 6222 },
+            new int[] { 1555, 7745 },
+            new int[] { 4666, 6222 },
+            new int[] { 7777, 6222 },
+            new int[] { 7777, 7745 },
+            new int[] { 10888, 7745 },
+            new int[] { 10102, 7745 });
 }
 
 class Entity {
@@ -237,10 +146,17 @@ class Entity {
                 ", visible=" + visible +
                 '}';
     }
+
+    public int[] getPosition() {
+        return new int[] { x, y };
+    }
 }
 
 class Buster extends Entity {
     private int stunReload = 0;
+    List<Ghost> visibleGhosts = new ArrayList<>();
+    int pathIndex = 0;
+    int[] currentExplorationDest = null;
 
     public Buster(int id, int x, int y, int type, int state, int value) {
         super(id, x, y, type, state, value);
@@ -254,8 +170,9 @@ class Buster extends Entity {
         return distanceToPoint(baseX, baseY) <= GameParameters.RELEASE_MAX_DISTANCE;
     }
 
-    public Ghost canCatchAGhost(List<Ghost> ghosts, List<Ghost> huntedGhosts) {
-        return ghosts.stream().filter(ghost -> isInCatchRange(ghost) && !huntedGhosts.contains(ghost)).findFirst()
+    public Ghost canCatchAGhost() {
+        return visibleGhosts.stream().filter(ghost -> isInCatchRange(ghost))
+                .findFirst()
                 .orElse(null);
     }
 
@@ -264,15 +181,15 @@ class Buster extends Entity {
         return distance >= GameParameters.CATCH_MIN_DISTANCE && distance <= GameParameters.CATCH_MAX_DISTANCE;
     }
 
-    public Ghost findClosestAvailableGhost(List<Ghost> ghosts, List<Ghost> huntedGhosts) {
-        List<Ghost> remainingGhosts = new ArrayList<>(ghosts);
-        remainingGhosts.removeAll(huntedGhosts);
-        return remainingGhosts.stream().min((g1, g2) -> Integer.compare(distanceToPoint(g1.x, g1.y), distanceToPoint(g2.x, g2.y))).orElse(null);
+    public Ghost findClosestAvailableGhost() {
+        return visibleGhosts.stream()
+                .min((g1, g2) -> Integer.compare(distanceToPoint(g1.x, g1.y), distanceToPoint(g2.x, g2.y)))
+                .orElse(null);
     }
 
     public Buster shouldStunAnEnemy(List<Buster> visibleEnemies) {
         return stunReload == 0 ? visibleEnemies.stream()
-                .filter(buster -> buster.distanceToPoint(x, y) <= GameParameters.STUN_MAX_DISTANCE && buster.isCarryingAGhost())
+                .filter(buster -> buster.isActive() && buster.distanceToPoint(x, y) <= GameParameters.STUN_MAX_DISTANCE)
                 .findFirst().orElse(null) : null;
     }
 
@@ -281,6 +198,7 @@ class Buster extends Entity {
         y = buster.y;
         state = buster.state;
         value = buster.value;
+        updateStunReload();
     }
 
     public void initializeStunReload() {
@@ -293,33 +211,8 @@ class Buster extends Entity {
         }
     }
 
-    public boolean canParticipateInObjective(Squad squad) {
-        if (squad.isBustingAGhost() && !isInCatchRange(squad.ghostToCatch)) {
-            return false;
-        }
-        return !isCarryingAGhost() && isActive();
-    }
-
     public boolean isActive() {
         return state != 2;
-    }
-
-    public String getPersonnalObjective(GameState gameState, Squad squad) {
-        if (isCarryingAGhost()) {
-            // Release ghost if close enough
-            if (isCloseEnoughToBase(gameState.baseX, gameState.baseY)) {
-                return "RELEASE (" + value + ")";
-            } else {
-                // Go back to base
-                int[] dest = squad.getReleaseDestination(gameState);
-                return "MOVE " + dest[0] + " " + dest[1] + " (Back)";
-            }
-        } else if (squad.isBustingAGhost()) {
-            // Need to close in
-            int[] objective = getDestOptimalDistance(squad.ghostToCatch, GameParameters.CATCH_MAX_DISTANCE);
-            return "MOVE " + objective[0] + " " + objective[1] + " (S" + squad.id + " CI : " + squad.ghostToCatch.id + ")";
-        }
-        return "ERROR " + squad.id + " / " + toString();
     }
 
     @Override
@@ -363,6 +256,55 @@ class Buster extends Entity {
 
     public List<Buster> getEnemiesInSight(GameState gameState) {
         return gameState.enemyBusters.values().stream().filter(enemy -> distanceToPoint(enemy.x, enemy.y) <= GameParameters.VISIBILITY_DISTANCE).collect(Collectors.toList());
+    }
+
+    public void resetVisibleGhosts() {
+        visibleGhosts.clear();
+    }
+
+    public void addVisibleGhost(Ghost ghost) {
+        visibleGhosts.add(ghost);
+    }
+
+    public String getObjective(GameState gameState) {
+        if (isCarryingAGhost()) {
+            // Release ghost if close enough
+            if (isCloseEnoughToBase(gameState.baseX, gameState.baseY)) {
+                return "RELEASE (" + value + ")";
+            } else {
+                // Go back to base
+                int[] dest = gameState.getBasePosition();
+                return "MOVE " + dest[0] + " " + dest[1] + " (Back)";
+            }
+        } else if (shouldStunAnEnemy(getEnemiesInSight(gameState)) != null) {
+            Buster enemyToStun = shouldStunAnEnemy(getEnemiesInSight(gameState));
+            initializeStunReload();
+            return "STUN " + enemyToStun.id;
+        } else if (canCatchAGhost() != null) {
+            Ghost ghost = canCatchAGhost();
+            return "BUST " + ghost.id + " (" + id + " B : " + ghost.id + ")";
+        } else if (visibleGhosts.size() > 0) {
+            Ghost ghost = findClosestAvailableGhost();
+            return "MOVE " + ghost.x + " " + ghost.y + " (CI " + ghost.id + ")";
+        } else {
+            if (currentExplorationDest == null) {
+                Random random = new Random();
+                // Start exploring from random point
+                pathIndex = Math.abs(random.nextInt()) % GameParameters.POSITIONS_TO_EXPLORE.size();
+                currentExplorationDest = GameParameters.POSITIONS_TO_EXPLORE.get(pathIndex);
+            }
+
+            if (x == currentExplorationDest[0] && y == currentExplorationDest[1]) {
+                // Destination reached, update it
+                pathIndex++;
+                currentExplorationDest = GameParameters.POSITIONS_TO_EXPLORE
+                        .get(pathIndex % GameParameters.POSITIONS_TO_EXPLORE.size());
+            }
+
+            return "MOVE " + currentExplorationDest[0] + " " + currentExplorationDest[1] + " (E + "
+                    + currentExplorationDest[0] + " "
+                    + currentExplorationDest[1] + ")";
+        }
     }
 }
 
@@ -451,223 +393,11 @@ class Ghost extends Entity {
     }
 }
 
-class Squad {
-    public static final int OBJECTIVE_TYPE_BUST = 1;
-    public static final int OBJECTIVE_TYPE_CLOSE_IN = 2;
-    public static final int OBJECTIVE_TYPE_EXPLORE = 3;
-    public static final int OBJECTIVE_TYPE_STEAL = 4;
-
-
-    int id;
-    int squadType;
-    Map<Integer, Buster> members = new HashMap<>();
-    int objectiveType = OBJECTIVE_TYPE_EXPLORE;
-    String objectiveMove;
-    Ghost ghostToCatch;
-    int[] objective = null;
-    int pathIndex = 0;
-
-    public Squad(int id, int squadType) {
-        this.id = id;
-        this.squadType = squadType;
-    }
-
-    public void addMember(Buster buster) {
-        members.put(buster.id, buster);
-    }
-
-    public boolean needToUpdateObjective(GameState gameState) {
-        // No objective yet
-        if (objectiveMove == null) {
-            System.err.println("S" + id + " UPD 1");
-            return true;
-        }
-
-        // Ghost is catched
-        if (ghostToCatch != null && !gameState.ghosts.get(ghostToCatch.id).visible) {
-            System.err.println("S" + id + " UPD 2");
-            ghostToCatch = null;
-            return true;
-        }
-
-        // Found a ghost
-        if (objectiveType == OBJECTIVE_TYPE_CLOSE_IN && members.values().stream().anyMatch(buster -> buster.canCatchAGhost(gameState.getVisibleGhosts(), gameState.getHuntedGhosts()) != null)) {
-            System.err.println("S" + id + " UPD 3");
-            return true;
-        }
-
-        // Found a ghost while exploring
-        if (objectiveType == OBJECTIVE_TYPE_EXPLORE && members.values().stream().anyMatch(buster -> buster.canCatchAGhost(gameState.getVisibleGhosts(), gameState.getHuntedGhosts()) != null
-                || buster.findClosestAvailableGhost(gameState.getVisibleGhosts(), gameState.getHuntedGhosts()) != null)) {
-            System.err.println("S" + id + " UPD 4");
-            return true;
-        }
-
-        // Found an ennemy catching a ghost
-        /*if (objectiveType == OBJECTIVE_TYPE_EXPLORE && members.values().stream().anyMatch(buster -> buster.isCloseToAnEnnemyBusting(gameState.getVisibleAndActiveEnemyBusters()) != null)) {
-            System.err.println("S" + id + " UPD 6");
-            return true;
-        }*/
-
-        // Destination reached
-        if ((objectiveType == OBJECTIVE_TYPE_EXPLORE || objectiveType == OBJECTIVE_TYPE_CLOSE_IN)
-                && members.values().stream().anyMatch(buster -> buster.x == objective[0] && buster.y == objective[1])) {
-            System.err.println("S" + id + " UPD 5");
-            return true;
-        }
-
-        return false;
-    }
-
-    public void updateObjective(GameState gameState) {
-        int distance = Integer.MAX_VALUE;
-
-        Ghost huntedGhost = null;
-
-        // 1. Try to catch a ghost
-        for (Buster buster : members.values()) {
-            Ghost ghost = buster.canCatchAGhost(gameState.getVisibleGhosts(), gameState.getHuntedGhosts());
-            if (ghost != null && buster.distanceToPoint(ghost.x, ghost.y) < distance) {
-                objective = new int[]{ghost.x, ghost.y};
-                distance = buster.distanceToPoint(ghost.x, ghost.y);
-                huntedGhost = ghost;
-            }
-        }
-
-        if (huntedGhost != null) {
-            objectiveType = OBJECTIVE_TYPE_BUST;
-            objectiveMove = "BUST " + huntedGhost.id + " (S" + id + " B : " + huntedGhost.id + ")";
-            ghostToCatch = huntedGhost;
-            return;
-        }
-
-        if (objective == null) {
-            for (Buster buster : members.values()) {
-                Ghost ghost = buster.findClosestAvailableGhost(gameState.getVisibleGhosts(), gameState.getHuntedGhosts());
-                if (ghost != null && buster.distanceToPoint(ghost.x, ghost.y) < distance && noOtherSquadCloser(gameState, ghost, distance)) {
-                    objective = buster.getDestOptimalDistance(ghost, GameParameters.CATCH_MAX_DISTANCE);
-                    distance = buster.distanceToPoint(ghost.x, ghost.y);
-                    huntedGhost = ghost;
-                }
-            }
-        }
-
-        // 2. Close in to visible ghost
-        if (huntedGhost != null) {
-            ghostToCatch = huntedGhost;
-            objectiveType = OBJECTIVE_TYPE_CLOSE_IN;
-            objectiveMove = "MOVE " + objective[0] + " " + objective[1] + " (S" + id + " CI : " + huntedGhost.id + ")";
-        } else {
-            // 3. Explore
-            List<int[]> path = GameParameters.POSITIONS_FROM_TOP_LEFT.get(2).get(id);
-            objective = path.get(pathIndex++ % path.size());
-            objectiveType = OBJECTIVE_TYPE_EXPLORE;
-            objectiveMove = "MOVE " + objective[0] + " " + objective[1] + " (S" + id + " EX : " + objective[0] + " " + objective[1] + ")";
-        }
-    }
-
-    public boolean noOtherSquadCloser(GameState gameState, Ghost ghost, int distance) {
-        for (Squad squad : gameState.squads) {
-            if (squad.id != id && !squad.isBusting()) {
-                // Check other squad members distance to Ghost
-                if (squad.members.values().stream().anyMatch(buster ->
-                        buster.isActive()
-                                && !buster.isCarryingAGhost()
-                                && buster.distanceToPoint(ghost.x, ghost.y) < distance)) {
-                    return false;
-                }
-            }
-        }
-        return true;
-    }
-
-    private boolean isBusting() {
-        return objectiveType == OBJECTIVE_TYPE_BUST;
-    }
-
-    public String getSquadObjective() {
-        return objectiveMove;
-    }
-
-    @Override
-    public String toString() {
-        return "Squad{" +
-                "id=" + id +
-                ", members=" + members +
-                '}';
-    }
-
-    public boolean isBustingAGhost() {
-        return ghostToCatch != null;
-    }
-
-    public int[] getReleaseDestination(GameState gameState) {
-        return new int[]{gameState.baseX, gameState.baseY};
-    }
-}
-
-class DestroyerSquad extends Squad {
-
-    private final int[] objective;
-    int ghostToCatch = -1;
-    int[] DODGING_PATH = new int[]{0, 9000};
-
-    public DestroyerSquad(int id, int[] objective) {
-        super(id, AIParameters.SQUAD_TYPE_DESTROYER);
-        this.objective = objective;
-    }
-
-    @Override
-    public void updateObjective(GameState gameState) {
-        Buster buster = members.values().stream().findFirst().get();
-
-        List<Buster> enemiesInSight = buster.getEnemiesInSight(gameState);
-        System.err.println("Enemies in sight : " + enemiesInSight);
-
-        // 1. Stun first, ask questions later
-        Buster enemy = buster.shouldStunAnEnemy(enemiesInSight);
-        if (enemy != null) {
-            objectiveMove = "STUN " + enemy.id + " (On the ground " + enemy.id + "!)";
-            buster.initializeStunReload();
-            ghostToCatch = enemy.value;
-        } else if (ghostToCatch != -1) {
-            // 2. Steal ghost
-            Ghost ghost = gameState.getGhost(ghostToCatch);
-            if (buster.isInCatchRange(ghost)) {
-                objectiveMove = "BUST " + ghost.id + " (S" + id + " B : " + ghost.id + ")";
-            }
-            ghostToCatch = -1;
-        } else if (buster.x != objective[0] && buster.y != objective[1]) {
-            // 3. Get in position
-            objectiveMove = "MOVE " + objective[0] + " " + objective[1] + " (S" + id + " S : " + objective[0] + " " + objective[1] + ")";
-        }
-    }
-
-    @Override
-    public boolean needToUpdateObjective(GameState gameState) {
-        Buster buster = members.values().stream().findFirst().get();
-        if (buster.isActive() && !buster.isCarryingAGhost()) {
-            return true;
-        }
-        return false;
-    }
-
-    public int[] getReleaseDestination(GameState gameState) {
-        Buster buster = members.values().stream().findFirst().get();
-        if (buster.x != DODGING_PATH[0] && buster.y != DODGING_PATH[1]) {
-            return DODGING_PATH;
-        } else {
-            return new int[]{gameState.baseX, gameState.baseY};
-        }
-    }
-}
-
 class GameState {
     int baseX;
     int baseY;
     int busterCount;
     int ghostCount;
-    List<Squad> squads;
 
     public GameState(int baseX, int baseY, int busterCount, int ghostCount) {
         this.baseX = baseX;
@@ -676,12 +406,14 @@ class GameState {
         this.ghostCount = ghostCount;
     }
 
+    Map<Integer, Buster> myBusters = new HashMap<>();
     Map<Integer, Buster> enemyBusters = new HashMap<>();
     Map<Integer, Ghost> ghosts = new HashMap<>();
 
     public void resetState() {
         enemyBusters.forEach((id, buster) -> buster.visible = false);
         ghosts.forEach((id, ghost) -> ghost.visible = false);
+        myBusters.forEach((id, buster) -> buster.resetVisibleGhosts());
     }
 
     @Override
@@ -695,13 +427,11 @@ class GameState {
     }
 
     public void updateBuster(Buster buster) {
-        squads.stream().forEach(squad -> {
-            if (squad.members.containsKey(buster.id)) {
-                squad.members.get(buster.id).update(buster);
-                squad.members.get(buster.id).updateStunReload();
-                // System.err.println("Updating buster " + buster + " in squad " + squad.id);
-            }
-        });
+        if (myBusters.containsKey(buster.id)) {
+            myBusters.get(buster.id).update(buster);
+        } else {
+            myBusters.put(buster.id, buster);
+        }
     }
 
     public void updateGhost(Ghost ghost) {
@@ -711,6 +441,12 @@ class GameState {
         } else {
             ghosts.put(ghost.id, ghost);
         }
+
+        myBusters.values().stream().forEach(buster -> {
+            if (buster.distanceToPoint(ghost.x, ghost.y) <= GameParameters.VISIBILITY_DISTANCE) {
+                buster.addVisibleGhost(ghosts.get(ghost.id));
+            }
+        });
     }
 
     public void updateEnemyBuster(Buster buster) {
@@ -722,28 +458,15 @@ class GameState {
         }
     }
 
-    public List<Buster> getVisibleAndActiveEnemyBusters() {
-        return enemyBusters.values().stream().filter(buster -> buster.visible && buster.state != 2).collect(
-                Collectors.toList());
-    }
-
-    public List<Ghost> getVisibleGhosts() {
-        return ghosts.values().stream().filter(ghost -> ghost.visible).collect(Collectors.toList());
-    }
-
-    public void setSquads(List<Squad> squads) {
-        this.squads = squads;
-    }
-
     public boolean isBaseTopLeft() {
         return baseX == 0;
     }
 
-    public List<Ghost> getHuntedGhosts() {
-        return squads.stream().map(squad -> squad.ghostToCatch).filter(Objects::nonNull).collect(Collectors.toList());
-    }
-
     public Ghost getGhost(int ghostToCatch) {
         return ghosts.get(ghostToCatch);
+    }
+
+    public int[] getBasePosition() {
+        return new int[] { baseX, baseY };
     }
 }

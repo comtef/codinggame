@@ -1,9 +1,8 @@
-import org.assertj.core.api.WithAssertions;
-import org.junit.Test;
-
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+
+import org.assertj.core.api.WithAssertions;
+import org.junit.Test;
 
 public class BusterTest implements WithAssertions {
 
@@ -70,9 +69,7 @@ public class BusterTest implements WithAssertions {
     @Test
     public void canCatchAGhostReturnsNullIfNoGhosts() throws Exception {
         Buster buster = new Buster(1, 0, 0, 0, 0, -1);
-        List<Ghost> ghosts = Arrays.asList();
-        List<Ghost> huntedGhosts = new ArrayList<>();
-        Ghost ghost = buster.canCatchAGhost(ghosts, huntedGhosts);
+        Ghost ghost = buster.canCatchAGhost();
         assertThat(ghost).isNull();
     }
 
@@ -82,20 +79,9 @@ public class BusterTest implements WithAssertions {
         List<Ghost> ghosts = Arrays.asList(
                 new Ghost(1, 10000, 5000, 0, 0, 0),
                 new Ghost(2, 1400, 1050, 0, 0, 0));
-        List<Ghost> huntedGhosts = new ArrayList<>();
-        Ghost ghost = buster.canCatchAGhost(ghosts, huntedGhosts);
+        buster.visibleGhosts = ghosts;
+        Ghost ghost = buster.canCatchAGhost();
         assertThat(ghost).isEqualTo(ghosts.get(1));
-    }
-
-    @Test
-    public void canCatchAGhostReturnsNullIfGhostInRangeAlreadyHunted() throws Exception {
-        Buster buster = new Buster(1, 0, 0, 0, 0, -1);
-        List<Ghost> ghosts = Arrays.asList(
-                new Ghost(1, 10000, 5000, 0, 0, 0),
-                new Ghost(2, 1400, 1050, 0, 0, 0));
-        List<Ghost> huntedGhosts = Arrays.asList(new Ghost(2, 1400, 1050, 0, 0, 0));
-        Ghost ghost = buster.canCatchAGhost(ghosts, huntedGhosts);
-        assertThat(ghost).isNull();
     }
 
     @Test
@@ -104,8 +90,8 @@ public class BusterTest implements WithAssertions {
         List<Ghost> ghosts = Arrays.asList(
                 new Ghost(1, 10000, 0, 0, 0, 0),
                 new Ghost(2, 0, 0, 0, 0, 0));
-        List<Ghost> huntedGhosts = new ArrayList<>();
-        Ghost ghost = buster.canCatchAGhost(ghosts, huntedGhosts);
+        buster.visibleGhosts = ghosts;
+        Ghost ghost = buster.canCatchAGhost();
         assertThat(ghost).isNull();
     }
 
@@ -113,21 +99,8 @@ public class BusterTest implements WithAssertions {
     public void findClosestAvailableGhostReturnsNullIfNoGhosts() throws Exception {
         Buster buster = new Buster(1, 0, 0, 0, 0, -1);
         List<Ghost> ghosts = Arrays.asList();
-        List<Ghost> huntedGhosts = Arrays.asList();
-        Ghost ghost = buster.findClosestAvailableGhost(ghosts, huntedGhosts);
-        assertThat(ghost).isNull();
-    }
-
-    @Test
-    public void findClosestAvailableGhostReturnsNullIfNoGhostAvailable() throws Exception {
-        Buster buster = new Buster(1, 0, 0, 0, 0, -1);
-        List<Ghost> ghosts = Arrays.asList(
-                new Ghost(1, 10000, 0, 0, 0, 0),
-                new Ghost(2, 0, 0, 0, 0, 0));
-        List<Ghost> huntedGhosts = Arrays.asList(
-                new Ghost(1, 10000, 0, 0, 0, 0),
-                new Ghost(2, 0, 0, 0, 0, 0));
-        Ghost ghost = buster.findClosestAvailableGhost(ghosts, huntedGhosts);
+        buster.visibleGhosts = ghosts;
+        Ghost ghost = buster.findClosestAvailableGhost();
         assertThat(ghost).isNull();
     }
 
@@ -137,10 +110,9 @@ public class BusterTest implements WithAssertions {
         List<Ghost> ghosts = Arrays.asList(
                 new Ghost(1, 1000, 1000, 0, 0, 0),
                 new Ghost(2, 500, 500, 0, 0, 0));
-        List<Ghost> huntedGhosts = Arrays.asList(
-                new Ghost(2, 500, 500, 0, 0, 0));
-        Ghost ghost = buster.findClosestAvailableGhost(ghosts, huntedGhosts);
-        assertThat(ghost).isEqualTo(ghosts.get(0));
+        buster.visibleGhosts = ghosts;
+        Ghost ghost = buster.findClosestAvailableGhost();
+        assertThat(ghost).isEqualTo(ghosts.get(1));
     }
 
     @Test
@@ -150,9 +122,8 @@ public class BusterTest implements WithAssertions {
                 new Ghost(1, 1000, 1000, 0, 0, 0),
                 new Ghost(2, 500, 500, 0, 0, 0),
                 new Ghost(3, 750, 750, 0, 0, 0));
-        List<Ghost> huntedGhosts = Arrays.asList(
-                new Ghost(3, 750, 750, 0, 0, 0));
-        Ghost ghost = buster.findClosestAvailableGhost(ghosts, huntedGhosts);
+        buster.visibleGhosts = ghosts;
+        Ghost ghost = buster.findClosestAvailableGhost();
         assertThat(ghost).isEqualTo(ghosts.get(1));
     }
 
