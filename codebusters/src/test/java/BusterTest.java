@@ -133,7 +133,7 @@ public class BusterTest implements WithAssertions {
         List<Buster> enemyList = Arrays.asList(
                 new Buster(1, 10000, 0, 0, 0, -1),
                 new Buster(1, 1500, 900, 0, 1, 1));
-        Buster enemy = buster.shouldStunAnEnemy(enemyList);
+        Buster enemy = buster.shouldStunAnEnemy(enemyList, gameState);
         assertThat(enemy).isEqualTo(enemyList.get(1));
     }
 
@@ -143,7 +143,7 @@ public class BusterTest implements WithAssertions {
         List<Buster> enemyList = Arrays.asList(
                 new Buster(1, 10000, 0, 0, 0, -1),
                 new Buster(1, 1600, 900, 0, 0, -1));
-        Buster enemy = buster.shouldStunAnEnemy(enemyList);
+        Buster enemy = buster.shouldStunAnEnemy(enemyList, gameState);
         assertThat(enemy).isNull();
     }
 
@@ -151,7 +151,7 @@ public class BusterTest implements WithAssertions {
     public void canStunAnEnemyNoOneVisible() {
         Buster buster = new Buster(1, 0, 0, 0, 0, -1);
         List<Buster> enemyList = Arrays.asList();
-        Buster enemy = buster.shouldStunAnEnemy(enemyList);
+        Buster enemy = buster.shouldStunAnEnemy(enemyList, gameState);
         assertThat(enemy).isNull();
     }
 
@@ -222,5 +222,19 @@ public class BusterTest implements WithAssertions {
         assertThat(dest).isEqualTo(new int[]{15664, 8997});
     }
 
+    @Test
+    public void getClosestGhostNotVisibleAndAvailable() {
+        Buster buster = new Buster(1, 1000, 1000, 0, 0, 0);
+        Buster buster2 = new Buster(1, 1000, 1000, 0, 0, 0);
+        List<Ghost> ghosts = Arrays.asList(
+                new Ghost(1, 15000, 3000, 0, 0, 0, false),
+                new Ghost(2, 2000, 4000, 0, 0, 0, false),
+                new Ghost(3, 9000, 6000, 0, 0, 0, false));
+        Ghost ghost = buster.getClosestGhostNotVisibleAndAvailable(ghosts);
+        Ghost ghost2 = buster2.getClosestGhostNotVisibleAndAvailable(ghosts);
+
+        assertThat(ghost).isEqualTo(ghosts.get(1));
+        assertThat(ghost2).isEqualTo(ghosts.get(2));
+    }
 
 }
