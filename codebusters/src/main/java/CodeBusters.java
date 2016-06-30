@@ -1,14 +1,6 @@
 import java.awt.geom.Line2D;
 import java.awt.geom.Point2D;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Random;
-import java.util.Scanner;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -62,8 +54,9 @@ class Player {
 }
 
 class GameParameters {
-    public static int WIDTH = 16000;
-    public static int HEIGHT = 9000;
+    public static final int DODGE_DISTANCE = 2200;
+    public static int WIDTH = 16001;
+    public static int HEIGHT = 9001;
 
     public static int VISIBILITY_DISTANCE = 2200;
 
@@ -77,25 +70,30 @@ class GameParameters {
     public static int STUN_MAX_DISTANCE = 1760;
 
     public static List<int[]> POSITIONS_TO_EXPLORE = Arrays.asList(
-            new int[] { 3111, 1555 },
-            new int[] { 6222, 1800 },
-            new int[] { 6222, 1555 },
-            new int[] { 9333, 1555 },
-            new int[] { 9333, 3500 },
-            new int[] { 12444, 4666 },
-            new int[] { 12444, 1555 },
-            new int[] { 14445, 1555 },
-            new int[] { 14445, 4666 },
-            new int[] { 14445, 7445 },
-            new int[] { 1555, 3111 },
-            new int[] { 4300, 3111 },
-            new int[] { 1555, 6222 },
-            new int[] { 1555, 7745 },
-            new int[] { 4666, 6222 },
-            new int[] { 7777, 6222 },
-            new int[] { 7777, 7745 },
-            new int[] { 10888, 7745 },
-            new int[] { 10102, 7745 });
+            new int[]{1333, 1500},
+            new int[]{4000, 4500},
+            new int[]{6666, 1500},
+            new int[]{9333, 4500},
+            new int[]{12000, 1500},
+            new int[]{14666, 4500},
+            new int[]{12000, 7500},
+            new int[]{9333, 4500},
+            new int[]{6666, 7500},
+            new int[]{4000, 4500},
+            new int[]{1333, 7500},
+            new int[]{1333, 4500},
+            new int[]{4000, 1500},
+            new int[]{6666, 4500},
+            new int[]{9333, 1500},
+            new int[]{12000, 4500},
+            new int[]{14666, 1500},
+            new int[]{14666, 7500},
+            new int[]{12000, 4500},
+            new int[]{9333, 7500},
+            new int[]{6666, 4500},
+            new int[]{4000, 7500},
+            new int[]{1333, 7500},
+            new int[]{1333, 4500});
 }
 
 class Entity {
@@ -114,6 +112,10 @@ class Entity {
         this.y = y;
         this.state = state;
         this.value = value;
+    }
+
+    public int distanceToPoint(int[] position) {
+        return distanceToPoint(position[0], position[1]);
     }
 
     public int distanceToPoint(int x, int y) {
@@ -148,13 +150,14 @@ class Entity {
     }
 
     public int[] getPosition() {
-        return new int[] { x, y };
+        return new int[]{x, y};
     }
 }
 
 class Buster extends Entity {
     private int stunReload = 0;
     List<Ghost> visibleGhosts = new ArrayList<>();
+    List<Buster> visibleEnemies = new ArrayList<>();
     int pathIndex = 0;
     int[] currentExplorationDest = null;
 
@@ -171,7 +174,9 @@ class Buster extends Entity {
     }
 
     public Ghost canCatchAGhost() {
+        // Catch easiest ghost first
         return visibleGhosts.stream().filter(ghost -> isInCatchRange(ghost))
+                .sorted((g1, g2) -> Integer.compare(g1.state, g2.state))
                 .findFirst()
                 .orElse(null);
     }
@@ -184,6 +189,13 @@ class Buster extends Entity {
     public Ghost findClosestAvailableGhost() {
         return visibleGhosts.stream()
                 .min((g1, g2) -> Integer.compare(distanceToPoint(g1.x, g1.y), distanceToPoint(g2.x, g2.y)))
+                .orElse(null);
+    }
+
+    public Ghost findEasietAvailableGhost() {
+        return visibleGhosts.stream()
+                .sorted((g1, g2) -> Integer.compare(g1.state, g2.state))
+                .findFirst()
                 .orElse(null);
     }
 
@@ -271,7 +283,11 @@ class Buster extends Entity {
             // Release ghost if close enough
             if (isCloseEnoughToBase(gameState.baseX, gameState.baseY)) {
                 return "RELEASE (" + value + ")";
-            } else {
+            } /*else if (enemyThreat() != null) {
+                // Dodge enemy
+                int[] dest = getPointAtMinimalDistance(enemyThreat(), GameParameters.DODGE_DISTANCE);
+                return "MOVE " + dest[0] + " " + dest[1] + " (You won't get me!)";
+            }*/ else {
                 // Go back to base
                 int[] dest = gameState.getBasePosition();
                 return "MOVE " + dest[0] + " " + dest[1] + " (Back)";
@@ -284,8 +300,14 @@ class Buster extends Entity {
             Ghost ghost = canCatchAGhost();
             return "BUST " + ghost.id + " (" + id + " B : " + ghost.id + ")";
         } else if (visibleGhosts.size() > 0) {
-            Ghost ghost = findClosestAvailableGhost();
-            return "MOVE " + ghost.x + " " + ghost.y + " (CI " + ghost.id + ")";
+            Ghost ghost = findEasietAvailableGhost();
+            if (distanceToPoint(ghost.x, ghost.y) < GameParameters.CATCH_MIN_DISTANCE) {
+                // Too close
+                int[] dest = getPointAtMinimalDistance(ghost, GameParameters.CATCH_MIN_DISTANCE);
+                return "MOVE " + dest[0] + " " + dest[1] + " (SB " + ghost.id + ")";
+            } else {
+                return "MOVE " + ghost.x + " " + ghost.y + " (CI " + ghost.id + ")";
+            }
         } else {
             if (currentExplorationDest == null) {
                 Random random = new Random();
@@ -305,6 +327,39 @@ class Buster extends Entity {
                     + currentExplorationDest[0] + " "
                     + currentExplorationDest[1] + ")";
         }
+    }
+
+    private Buster enemyThreat() {
+        return visibleEnemies.stream().filter(enemy -> enemy.isActive() && enemy.distanceToPoint(getPosition()) > GameParameters.STUN_MAX_DISTANCE).findFirst().orElse(null);
+    }
+
+    public int[] getPointAtMinimalDistance(Entity entity, int minDistance) {
+
+        boolean found = false;
+        int[] result = null;
+        int startAngle = 0;
+
+        while (!found && startAngle < 361) {
+            int newX = (int) (minDistance * Math.cos(Math.toRadians(startAngle)) + entity.x);
+            int newY = (int) (minDistance * Math.sin(Math.toRadians(startAngle)) + entity.y);
+
+            if (newX >= 0 && newX < GameParameters.WIDTH && newY >= 0 && newY < GameParameters.HEIGHT && newX != x && newY != y) {
+                found = true;
+                result = new int[]{newX, newY};
+            } else {
+                startAngle++;
+            }
+        }
+
+        return result;
+    }
+
+    public void addVisibleEnemy(Buster enemy) {
+        visibleEnemies.add(enemy);
+    }
+
+    public void resetVisibleEnemies() {
+        visibleEnemies.clear();
     }
 }
 
@@ -413,7 +468,10 @@ class GameState {
     public void resetState() {
         enemyBusters.forEach((id, buster) -> buster.visible = false);
         ghosts.forEach((id, ghost) -> ghost.visible = false);
-        myBusters.forEach((id, buster) -> buster.resetVisibleGhosts());
+        myBusters.forEach((id, buster) -> {
+            buster.resetVisibleGhosts();
+            buster.resetVisibleEnemies();
+        });
     }
 
     @Override
@@ -456,6 +514,12 @@ class GameState {
         } else {
             enemyBusters.put(buster.id, buster);
         }
+
+        myBusters.values().stream().forEach(myBuster -> {
+            if (myBuster.distanceToPoint(buster.x, buster.y) <= GameParameters.VISIBILITY_DISTANCE) {
+                myBuster.addVisibleEnemy(enemyBusters.get(buster.id));
+            }
+        });
     }
 
     public boolean isBaseTopLeft() {
@@ -467,6 +531,6 @@ class GameState {
     }
 
     public int[] getBasePosition() {
-        return new int[] { baseX, baseY };
+        return new int[]{baseX, baseY};
     }
 }

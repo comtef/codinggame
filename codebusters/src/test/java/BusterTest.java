@@ -1,8 +1,8 @@
-import java.util.Arrays;
-import java.util.List;
-
 import org.assertj.core.api.WithAssertions;
 import org.junit.Test;
+
+import java.util.Arrays;
+import java.util.List;
 
 public class BusterTest implements WithAssertions {
 
@@ -204,4 +204,23 @@ public class BusterTest implements WithAssertions {
         Buster ennemyBusting = buster.isCloseToAnEnnemyBusting(enemyList);
         assertThat(ennemyBusting).isNull();
     }
+
+
+    @Test
+    public void getPointAtMinimalDistance() {
+        Buster buster = new Buster(1, 1000, 1000, 0, 0, 0);
+        int[] dest = buster.getPointAtMinimalDistance(new Ghost(0, 1000, 1500, 0, 0, 0), 600);
+
+        assertThat(dest).isEqualTo(new int[]{1600, 1500});
+    }
+
+    @Test
+    public void getPointAtMinimalDistanceFromBottomLeft() {
+        Buster buster = new Buster(1, 16000, 9000, 0, 0, 0);
+        int[] dest = buster.getPointAtMinimalDistance(new Ghost(0, 16000, 8500, 0, 0, 0), 600);
+
+        assertThat(dest).isEqualTo(new int[]{15664, 8997});
+    }
+
+
 }
