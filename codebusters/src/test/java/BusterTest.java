@@ -1,8 +1,8 @@
-import org.assertj.core.api.WithAssertions;
-import org.junit.Test;
-
 import java.util.Arrays;
 import java.util.List;
+
+import org.assertj.core.api.WithAssertions;
+import org.junit.Test;
 
 public class BusterTest implements WithAssertions {
 
@@ -133,7 +133,8 @@ public class BusterTest implements WithAssertions {
         List<Buster> enemyList = Arrays.asList(
                 new Buster(1, 10000, 0, 0, 0, -1),
                 new Buster(1, 1500, 900, 0, 1, 1));
-        Buster enemy = buster.shouldStunAnEnemy(enemyList, gameState);
+        buster.visibleEnemies = enemyList;
+        Buster enemy = buster.shouldStunAnEnemy();
         assertThat(enemy).isEqualTo(enemyList.get(1));
     }
 
@@ -143,15 +144,15 @@ public class BusterTest implements WithAssertions {
         List<Buster> enemyList = Arrays.asList(
                 new Buster(1, 10000, 0, 0, 0, -1),
                 new Buster(1, 1600, 900, 0, 0, -1));
-        Buster enemy = buster.shouldStunAnEnemy(enemyList, gameState);
+        buster.visibleEnemies = enemyList;
+        Buster enemy = buster.shouldStunAnEnemy();
         assertThat(enemy).isNull();
     }
 
     @Test
     public void canStunAnEnemyNoOneVisible() {
         Buster buster = new Buster(1, 0, 0, 0, 0, -1);
-        List<Buster> enemyList = Arrays.asList();
-        Buster enemy = buster.shouldStunAnEnemy(enemyList, gameState);
+        Buster enemy = buster.shouldStunAnEnemy();
         assertThat(enemy).isNull();
     }
 
@@ -173,40 +174,6 @@ public class BusterTest implements WithAssertions {
     }
 
     @Test
-    public void isCloseToAnEnnemyBustingReturnsEnemyInRange() {
-        Buster buster = new Buster(1, 0, 0, 0, 0, 0);
-        List<Buster> enemyList = Arrays.asList(
-                new Buster(2, 3000, 3000, 0, 3, 0),
-                new Buster(3, 1000, 1000, 0, 3, 0)
-        );
-        Buster ennemyBusting = buster.isCloseToAnEnnemyBusting(enemyList);
-        assertThat(ennemyBusting).isEqualTo(enemyList.get(1));
-    }
-
-    @Test
-    public void isCloseToAnEnnemyBustingReturnsNullIfNoEnemyBustingInRange() {
-        Buster buster = new Buster(1, 0, 0, 0, 0, 0);
-        List<Buster> enemyList = Arrays.asList(
-                new Buster(2, 3000, 3000, 0, 3, 0),
-                new Buster(3, 1000, 1000, 0, 0, 0)
-        );
-        Buster ennemyBusting = buster.isCloseToAnEnnemyBusting(enemyList);
-        assertThat(ennemyBusting).isNull();
-    }
-
-    @Test
-    public void isCloseToAnEnnemyBustingReturnsNullIfNoEnemyInRange() {
-        Buster buster = new Buster(1, 0, 0, 0, 0, 0);
-        List<Buster> enemyList = Arrays.asList(
-                new Buster(2, 3000, 3000, 0, 3, 0),
-                new Buster(3, 5000, 5000, 0, 3, 0)
-        );
-        Buster ennemyBusting = buster.isCloseToAnEnnemyBusting(enemyList);
-        assertThat(ennemyBusting).isNull();
-    }
-
-
-    @Test
     public void getPointAtMinimalDistance() {
         Buster buster = new Buster(1, 1000, 1000, 0, 0, 0);
         int[] dest = buster.getPointAtMinimalDistance(new Ghost(0, 1000, 1500, 0, 0, 0), 600);
@@ -221,20 +188,4 @@ public class BusterTest implements WithAssertions {
 
         assertThat(dest).isEqualTo(new int[]{15664, 8997});
     }
-
-    @Test
-    public void getClosestGhostNotVisibleAndAvailable() {
-        Buster buster = new Buster(1, 1000, 1000, 0, 0, 0);
-        Buster buster2 = new Buster(1, 1000, 1000, 0, 0, 0);
-        List<Ghost> ghosts = Arrays.asList(
-                new Ghost(1, 15000, 3000, 0, 0, 0, false),
-                new Ghost(2, 2000, 4000, 0, 0, 0, false),
-                new Ghost(3, 9000, 6000, 0, 0, 0, false));
-        Ghost ghost = buster.getClosestGhostNotVisibleAndAvailable(ghosts);
-        Ghost ghost2 = buster2.getClosestGhostNotVisibleAndAvailable(ghosts);
-
-        assertThat(ghost).isEqualTo(ghosts.get(1));
-        assertThat(ghost2).isEqualTo(ghosts.get(2));
-    }
-
 }

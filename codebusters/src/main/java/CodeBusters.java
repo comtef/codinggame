@@ -1,6 +1,15 @@
 import java.awt.geom.Line2D;
 import java.awt.geom.Point2D;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Scanner;
 import java.util.stream.Collectors;
 
 /**
@@ -68,30 +77,21 @@ class GameParameters {
     public static int STUN_MAX_DISTANCE = 1760;
 
     public static List<int[]> POSITIONS_TO_EXPLORE = Arrays.asList(
-            new int[]{1333, 1500},
-            new int[]{4000, 4500},
-            new int[]{6666, 1500},
-            new int[]{9333, 4500},
-            new int[]{12000, 1500},
-            new int[]{14666, 4500},
-            new int[]{12000, 7500},
-            new int[]{9333, 4500},
-            new int[]{6666, 7500},
-            new int[]{4000, 4500},
-            new int[]{1333, 7500},
-            new int[]{1333, 4500},
-            new int[]{4000, 1500},
-            new int[]{6666, 4500},
-            new int[]{9333, 1500},
-            new int[]{12000, 4500},
-            new int[]{14666, 1500},
-            new int[]{14666, 7500},
-            new int[]{12000, 4500},
-            new int[]{9333, 7500},
-            new int[]{6666, 4500},
-            new int[]{4000, 7500},
-            new int[]{1333, 7500},
-            new int[]{1333, 4500});
+            new int[] { 4000, 1500 },
+            new int[] { 6666, 1500 },
+            new int[] { 9333, 1500 },
+            new int[] { 12000, 1500 },
+            new int[] { 1333, 4500 },
+            new int[] { 4000, 4500 },
+            new int[] { 6666, 4500 },
+            new int[] { 9333, 4500 },
+            new int[] { 12000, 4500 },
+            new int[] { 14666, 4500 },
+            new int[] { 1333, 7500 },
+            new int[] { 4000, 7500 },
+            new int[] { 6666, 7500 },
+            new int[] { 9333, 7500 },
+            new int[] { 12000, 7500 });
 }
 
 class Entity {
@@ -156,7 +156,7 @@ class Buster extends Entity {
     private int stunReload = 0;
     List<Ghost> visibleGhosts = new ArrayList<>();
     List<Buster> visibleEnemies = new ArrayList<>();
-    int pathIndex = 0;
+    int[] ghostToSteal = null;
     int[] currentExplorationDest = null;
     String move;
 
@@ -193,23 +193,16 @@ class Buster extends Entity {
 
     public Ghost findEasietAvailableGhost() {
         return visibleGhosts.stream()
+                .filter(g -> g.available)
                 .sorted((g1, g2) -> Integer.compare(g1.state, g2.state))
                 .findFirst()
                 .orElse(null);
     }
 
-    public Buster shouldStunAnEnemy(List<Buster> visibleEnemies, GameState gameState) {
-        // Stun if carrying a ghost
-        // Or busting a ghost
-        // Or close to our base
-        // And in range
+    public Buster shouldStunAnEnemy() {
+        // Good old stun
         return stunReload == 0 ? visibleEnemies.stream()
-                .filter(buster -> buster.isActive() && buster.distanceToPoint(x, y) <= GameParameters.STUN_MAX_DISTANCE
-                        && (
-                        buster.isCarryingAGhost()
-                                || buster.isBusting()
-                                || buster.distanceToPoint(gameState.getBasePosition()) < 3000
-                ))
+                .filter(buster -> buster.isActive() && buster.distanceToPoint(x, y) <= GameParameters.STUN_MAX_DISTANCE)
                 .findFirst().orElse(null) : null;
     }
 
@@ -266,16 +259,8 @@ class Buster extends Entity {
         return new int[]{optimum.x, optimum.y};
     }
 
-    public Buster isCloseToAnEnnemyBusting(List<Buster> enemyBusters) {
-        return enemyBusters.stream().filter(enemy -> distanceToPoint(enemy.x, enemy.y) < GameParameters.VISIBILITY_DISTANCE && enemy.isBusting()).findFirst().orElse(null);
-    }
-
     private boolean isBusting() {
         return state == 3;
-    }
-
-    public List<Buster> getEnemiesInSight(GameState gameState) {
-        return gameState.enemyBusters.values().stream().filter(enemy -> distanceToPoint(enemy.x, enemy.y) <= GameParameters.VISIBILITY_DISTANCE).collect(Collectors.toList());
     }
 
     public void resetVisibleGhosts() {
@@ -290,49 +275,68 @@ class Buster extends Entity {
         return x == position[0] && y == position[1];
     }
 
-    public Ghost getClosestGhostNotVisibleAndAvailable(List<Ghost> invisibleGhosts) {
-        Ghost ghost = invisibleGhosts.stream().filter(g -> g.available)
-                .sorted((g1, g2) -> Integer.compare(distanceToPoint(g1.getPosition()), distanceToPoint(g2.getPosition())))
+    public Ghost getClosestGhost(Collection<Ghost> ghosts) {
+        Ghost ghost = ghosts.stream()
+                .sorted((g1, g2) -> Integer.compare(distanceToPoint(g1.getPosition()),
+                        distanceToPoint(g2.getPosition())))
                 .findFirst().orElse(null);
-        if (ghost != null) {
-            ghost.available = false;
-        }
         return ghost;
     }
 
-    private void updateNextExplorationDest() {
-        if (currentExplorationDest == null) {
-            Random random = new Random();
-            // Start exploring from random point
-            pathIndex = Math.abs(random.nextInt()) % GameParameters.POSITIONS_TO_EXPLORE.size();
-            currentExplorationDest = GameParameters.POSITIONS_TO_EXPLORE.get(pathIndex);
-        }
+    public Ghost getEasietGhost(Collection<Ghost> ghosts) {
+        Ghost ghost = ghosts.stream()
+                .filter(g -> g.available)
+                .sorted((g1, g2) -> Integer.compare(g1.state,
+                        g2.state))
+                .findFirst().orElse(null);
+        return ghost;
+    }
 
-        if (x == currentExplorationDest[0] && y == currentExplorationDest[1]) {
-            // Destination reached, update it
-            pathIndex++;
-            currentExplorationDest = GameParameters.POSITIONS_TO_EXPLORE
-                    .get(pathIndex % GameParameters.POSITIONS_TO_EXPLORE.size());
+    /*
+     * public Ghost getClosestGhostAvailable(Collection<Ghost> ghosts) {
+     * Ghost ghost = ghosts.stream().filter(g -> g.available)
+     * .sorted((g1, g2) -> Integer.compare(distanceToPoint(g1.getPosition()), distanceToPoint(g2.getPosition())))
+     * .findFirst().orElse(null);
+     * if (ghost != null) {
+     * ghost.available = false;
+     * }
+     * return ghost;
+     * }
+     */
+
+    private void updateNextExplorationDest(GameState gameState) {
+        if (gameState.unknowPositions.size() == 0) {
+            gameState.resetUnknownPositions();
+        }
+        if (currentExplorationDest == null || (x == currentExplorationDest[0] && y == currentExplorationDest[1])) {
+            currentExplorationDest = getClosestPosition(gameState.unknowPositions);
+            gameState.unknowPositions.remove(currentExplorationDest);
         }
     }
 
-    private Buster enemyThreat() {
-        return visibleEnemies.stream().filter(enemy -> enemy.isActive() && enemy.distanceToPoint(getPosition()) > GameParameters.STUN_MAX_DISTANCE).findFirst().orElse(null);
+    private int[] getClosestPosition(List<int[]> unknowPositions) {
+        return unknowPositions.stream().sorted((p1, p2) -> Integer.compare(distanceToPoint(p1), distanceToPoint(p2)))
+                .findFirst().get();
     }
 
     public int[] getPointAtMinimalDistance(Entity entity, int minDistance) {
+        return getPointAtMinimalDistance(entity.x, entity.y, minDistance);
+    }
+
+    public int[] getPointAtMinimalDistance(int entityX, int entityY, int minDistance) {
 
         boolean found = false;
         int[] result = null;
         int startAngle = 0;
 
         while (!found && startAngle < 361) {
-            int newX = (int) (minDistance * Math.cos(Math.toRadians(startAngle)) + entity.x);
-            int newY = (int) (minDistance * Math.sin(Math.toRadians(startAngle)) + entity.y);
+            int newX = (int) (minDistance * Math.cos(Math.toRadians(startAngle)) + entityX);
+            int newY = (int) (minDistance * Math.sin(Math.toRadians(startAngle)) + entityY);
 
-            if (newX >= 0 && newX < GameParameters.WIDTH && newY >= 0 && newY < GameParameters.HEIGHT && newX != x && newY != y) {
+            if (newX >= 0 && newX < GameParameters.WIDTH && newY >= 0 && newY < GameParameters.HEIGHT && newX != x
+                    && newY != y) {
                 found = true;
-                result = new int[]{newX, newY};
+                result = new int[] { newX, newY };
             } else {
                 startAngle++;
             }
@@ -357,19 +361,19 @@ class Buster extends Entity {
             // Release ghost if close enough
             if (isCloseEnoughToBase(gameState.baseX, gameState.baseY)) {
                 move = "RELEASE (" + value + ")";
-            } else {
-                // Go back to base
-                int[] dest = gameState.getBasePosition();
-                move = "MOVE " + dest[0] + " " + dest[1] + " (Back)";
             }
         }
     }
 
-    public void updateMoveIfStun(GameState gameState) {
-        Buster enemyToStun = shouldStunAnEnemy(getEnemiesInSight(gameState), gameState);
+    public void updateMoveIfStun() {
+        Buster enemyToStun = shouldStunAnEnemy();
         if (enemyToStun != null) {
             initializeStunReload();
             move = "STUN " + enemyToStun.id;
+
+            if (enemyToStun.isCarryingAGhost()) {
+                ghostToSteal = enemyToStun.getPosition();
+            }
         }
     }
 
@@ -377,6 +381,7 @@ class Buster extends Entity {
         Ghost ghostToCatch = canCatchAGhost();
         if (ghostToCatch != null) {
             ghostToCatch.busted();
+            ghostToCatch.available = false;
             move = "BUST " + ghostToCatch.id + " (" + id + " B : " + ghostToCatch.id + ")";
         }
     }
@@ -387,6 +392,7 @@ class Buster extends Entity {
 
     private String getMoveToGhost(Ghost ghost) {
         if (distanceToPoint(ghost.x, ghost.y) < GameParameters.CATCH_MIN_DISTANCE) {
+            ghost.available = false;
             // Too close
             int[] dest = getPointAtMinimalDistance(ghost, GameParameters.CATCH_MIN_DISTANCE);
             return "MOVE " + dest[0] + " " + dest[1];
@@ -397,30 +403,31 @@ class Buster extends Entity {
 
     public void updateMoveIfCloseIn() {
         Ghost ghostToSeek = findEasietAvailableGhost();
-        if (visibleGhosts.size() > 0) {
+        if (ghostToSeek != null) {
+            ghostToSeek.available = false;
             move = getMoveToGhost(ghostToSeek) + " (CI " + ghostToSeek.id + ")";
         }
     }
 
     public void updateMoveIfKnownGhost(GameState gameState) {
-        Ghost closestGhostNotVisible = getClosestGhostNotVisibleAndAvailable(gameState.getInvisibleGhosts());
-        if (closestGhostNotVisible != null) {
-            if (samePosition(closestGhostNotVisible.getPosition())) {
+        Ghost ghost = getEasietGhost(gameState.ghosts.values());
+        if (ghost != null) {
+            System.err.println(ghost);
+            if (samePosition(ghost.getPosition())) {
                 // Ghost is not where we expected him to be, remove him for now
-                gameState.removeGhost(closestGhostNotVisible.id);
+                gameState.removeGhost(ghost.id);
             } else {
                 // Move to last ghost posistion
-                move = "MOVE " + closestGhostNotVisible.x + " " + closestGhostNotVisible.y + " (F " + closestGhostNotVisible.id + ")";
+                ghost.available = false;
+                move = "MOVE " + ghost.x + " " + ghost.y + " (F " + ghost.id + ")";
             }
         }
     }
 
-    public void updateMoveIfExploration() {
+    public void updateMoveIfExploration(GameState gameState) {
         // Nothing to do, explore
-        updateNextExplorationDest();
-        move = "MOVE " + currentExplorationDest[0] + " " + currentExplorationDest[1] + " (E + "
-                + currentExplorationDest[0] + " "
-                + currentExplorationDest[1] + ")";
+        updateNextExplorationDest(gameState);
+        move = "MOVE " + currentExplorationDest[0] + " " + currentExplorationDest[1];
     }
 
     public void updateMoveIfStuned() {
@@ -431,6 +438,31 @@ class Buster extends Entity {
 
     public void resetMove() {
         move = null;
+    }
+
+    public void updateMoveIfGoBack(GameState gameState) {
+        if (isCarryingAGhost() && !isCloseEnoughToBase(gameState.baseX, gameState.baseY)) {
+            // Go back to base
+            int[] dest = gameState.getBasePosition();
+            move = "MOVE " + dest[0] + " " + dest[1] + " (Back)";
+        }
+    }
+
+    public void updateMoveIfHunt() {
+        if (ghostToSteal != null) {
+            int[] dest = getPointAtMinimalDistance(ghostToSteal[0], ghostToSteal[1],
+                    GameParameters.CATCH_MAX_DISTANCE - 1);
+            move = "MOVE " + dest[0] + " " + dest[1] + " (H2)";
+            ghostToSteal = null;
+        } else {
+            Buster enemyToHunt = visibleEnemies.stream()
+                    .filter(enemy -> enemy.isCarryingAGhost()
+                            && distanceToPoint(enemy.getPosition()) <= GameParameters.STUN_MAX_DISTANCE)
+                    .findFirst().orElse(null);
+            if (enemyToHunt != null) {
+                move = "MOVE " + enemyToHunt.x + " " + enemyToHunt.y + " (H)";
+            }
+        }
     }
 }
 
@@ -542,17 +574,29 @@ class GameState {
     int baseY;
     int busterCount;
     int ghostCount;
+    List<int[]> unknowPositions;
 
     public GameState(int baseX, int baseY, int busterCount, int ghostCount) {
         this.baseX = baseX;
         this.baseY = baseY;
         this.busterCount = busterCount;
         this.ghostCount = ghostCount;
+        resetUnknownPositions();
+    }
+
+    public void resetUnknownPositions() {
+        unknowPositions = new ArrayList<>(GameParameters.POSITIONS_TO_EXPLORE);
+        if (isBaseTopLeft()) {
+            unknowPositions.add(new int[] { 14666, 7500 });
+        } else {
+            unknowPositions.add(new int[] { 1333, 1500 });
+        }
     }
 
     Map<Integer, Buster> myBusters = new HashMap<>();
     Map<Integer, Buster> enemyBusters = new HashMap<>();
     Map<Integer, Ghost> ghosts = new HashMap<>();
+
 
     public void resetState() {
         enemyBusters.forEach((id, buster) -> buster.visible = false);
@@ -616,10 +660,6 @@ class GameState {
         return baseX == 0;
     }
 
-    public Ghost getGhost(int ghostToCatch) {
-        return ghosts.get(ghostToCatch);
-    }
-
     public int[] getBasePosition() {
         return new int[]{baseX, baseY};
     }
@@ -633,33 +673,48 @@ class GameState {
     }
 
     public void updateMoves() {
+        // Update busters in reverseOrder
+        List<Buster> busters = myBusters.values().stream().sorted((b1, b2) -> Integer.compare(b1.id, b2.id))
+                .collect(Collectors.collectingAndThen(Collectors.toList(), l -> {
+                    Collections.reverse(l);
+                    return l;
+                }));
+
         // Moves for stuned busters
-        myBusters.values().stream().forEach(buster -> buster.updateMoveIfStuned());
+        busters.stream().forEach(buster -> buster.updateMoveIfStuned());
 
         // First set all release moves
-        myBusters.values().stream().filter(buster -> buster.move == null).forEach(buster -> buster.updateMoveIfRelease(this));
+        busters.stream().filter(buster -> buster.move == null).forEach(buster -> buster.updateMoveIfRelease(this));
 
         // Then set stun moves
-        myBusters.values().stream().filter(buster -> buster.move == null).forEach(buster -> buster.updateMoveIfStun(this));
+        busters.stream().filter(buster -> buster.move == null).forEach(buster -> buster.updateMoveIfStun());
+
+        // Then set go back moves
+        busters.stream().filter(buster -> buster.move == null)
+                .forEach(buster -> buster.updateMoveIfGoBack(this));
 
         // Then set catch ghost moves
-        myBusters.values().stream().filter(buster -> buster.move == null).forEach(buster -> buster.updateMoveIfCatch());
+        busters.stream().filter(buster -> buster.move == null).forEach(buster -> buster.updateMoveIfCatch());
+
+        // Then set hunt moves
+        busters.stream().filter(buster -> buster.move == null).forEach(buster -> buster.updateMoveIfHunt());
+
+        // Then set close in moves
+        busters.stream().filter(buster -> buster.move == null).forEach(buster -> buster.updateMoveIfCloseIn());
 
         // Then check for backup moves
         Ghost ghost = ghosts.values().stream().filter(g -> g.needBackup()).findFirst().orElse(null);
         if (ghost != null) {
-            myBusters.values().stream().filter(buster -> buster.move == null)
+            busters.stream().filter(buster -> buster.move == null)
                     .sorted((b1, b2) -> Integer.compare(b1.distanceToPoint(ghost.x, ghost.y), b2.distanceToPoint(ghost.x, ghost.y)))
                     .findFirst().ifPresent(buster -> buster.updateBackupMove(ghost));
         }
 
-        // Then set close in moves
-        myBusters.values().stream().filter(buster -> buster.move == null).forEach(buster -> buster.updateMoveIfCloseIn());
+        // Then explore to last known ghost
+        busters.stream().filter(buster -> buster.move == null).forEach(buster -> buster.updateMoveIfKnownGhost(this));
 
-        // Then explore to last know ghost
-        myBusters.values().stream().filter(buster -> buster.move == null).forEach(buster -> buster.updateMoveIfKnownGhost(this));
-
-        // Then explore to last know ghost
-        myBusters.values().stream().filter(buster -> buster.move == null).forEach(buster -> buster.updateMoveIfExploration());
+        // Then explore
+        busters.stream().filter(buster -> buster.move == null)
+                .forEach(buster -> buster.updateMoveIfExploration(this));
     }
 }
