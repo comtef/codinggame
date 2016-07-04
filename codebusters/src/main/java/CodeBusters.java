@@ -1,15 +1,6 @@
 import java.awt.geom.Line2D;
 import java.awt.geom.Point2D;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Scanner;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -24,7 +15,8 @@ class Player {
         int myTeamId = in
                 .nextInt(); // if this is 0, your base is on the top left of the map, if it is one, on the bottom right
 
-        GameState gameState = new GameState(myTeamId == 0 ? 0 : 16000, myTeamId == 0 ? 0 : 9000, bustersPerPlayer,
+        GameState gameState = new GameState(myTeamId == 0 ? new int[]{0, 0} : new int[]{16000, 9000},
+                myTeamId == 0 ? new int[]{16000, 9000} : new int[]{0, 0}, bustersPerPlayer,
                 ghostCount);
 
         // game loop
@@ -50,6 +42,7 @@ class Player {
                 }
             }
 
+            gameState.updateTurn();
             gameState.updateMoves();
 
             gameState.myBusters.keySet().stream().sorted().forEach(busterId -> {
@@ -61,7 +54,6 @@ class Player {
 }
 
 class GameParameters {
-    public static final int DODGE_DISTANCE = 2200;
     public static int WIDTH = 16001;
     public static int HEIGHT = 9001;
 
@@ -72,26 +64,53 @@ class GameParameters {
     public static int CATCH_MIN_DISTANCE = 900;
     public static int CATCH_MAX_DISTANCE = 1760;
 
-    public static int FLEE_DISTANCE = 400;
-
     public static int STUN_MAX_DISTANCE = 1760;
 
+    public static int START_CATCHING_GHOST_15_AT_TURN = 15;
+    public static int START_CATCHING_GHOST_40_AT_TURN = 75;
+
+    public static List<int[]> POSITION_TO_EXPLORE_FIRST_FROM_TOP = Arrays.asList(
+            new int[]{9333, 5000},
+            new int[]{12000, 3000},
+            new int[]{6666, 6000},
+            new int[]{14666, 1500},
+            new int[]{1333, 7500}
+    );
+
+    public static List<int[]> POSITION_TO_EXPLORE_FIRST_FROM_BOTTOM = Arrays.asList(
+            new int[]{6666, 4000},
+            new int[]{4000, 6000},
+            new int[]{9333, 1500},
+            new int[]{14666, 1500},
+            new int[]{1333, 7500}
+    );
+
+    public static List<int[]> POSITIONS_TO_EXPLORE_LATE_GAME = Arrays.asList(
+            new int[]{8000, 1000},
+            new int[]{15000, 1000},
+            new int[]{15000, 4500},
+            new int[]{8000, 4500},
+            new int[]{1000, 7000},
+            new int[]{1000, 4500},
+            new int[]{8000, 4500}
+    );
+
     public static List<int[]> POSITIONS_TO_EXPLORE = Arrays.asList(
-            new int[] { 4000, 1500 },
-            new int[] { 6666, 1500 },
-            new int[] { 9333, 1500 },
-            new int[] { 12000, 1500 },
-            new int[] { 1333, 4500 },
-            new int[] { 4000, 4500 },
-            new int[] { 6666, 4500 },
-            new int[] { 9333, 4500 },
-            new int[] { 12000, 4500 },
-            new int[] { 14666, 4500 },
-            new int[] { 1333, 7500 },
-            new int[] { 4000, 7500 },
-            new int[] { 6666, 7500 },
-            new int[] { 9333, 7500 },
-            new int[] { 12000, 7500 });
+            new int[]{4000, 1500},
+            new int[]{6666, 1500},
+            new int[]{9333, 1500},
+            new int[]{12000, 1500},
+            new int[]{1333, 4500},
+            new int[]{4000, 4500},
+            new int[]{6666, 4500},
+            new int[]{9333, 4500},
+            new int[]{12000, 4500},
+            new int[]{14666, 4500},
+            new int[]{1333, 7500},
+            new int[]{4000, 7500},
+            new int[]{6666, 7500},
+            new int[]{9333, 7500},
+            new int[]{12000, 7500});
 }
 
 class Entity {
@@ -134,19 +153,6 @@ class Entity {
         return Objects.hash(id, type);
     }
 
-    @Override
-    public String toString() {
-        return "Entity{" +
-                "id=" + id +
-                ", type=" + type +
-                ", x=" + x +
-                ", y=" + y +
-                ", state=" + state +
-                ", value=" + value +
-                ", visible=" + visible +
-                '}';
-    }
-
     public int[] getPosition() {
         return new int[]{x, y};
     }
@@ -168,8 +174,8 @@ class Buster extends Entity {
         return state == 1;
     }
 
-    public boolean isCloseEnoughToBase(int baseX, int baseY) {
-        return distanceToPoint(baseX, baseY) <= GameParameters.RELEASE_MAX_DISTANCE;
+    public boolean isCloseEnoughToBase(int[] basePosition) {
+        return distanceToPoint(basePosition) <= GameParameters.RELEASE_MAX_DISTANCE;
     }
 
     public Ghost canCatchAGhost() {
@@ -183,20 +189,6 @@ class Buster extends Entity {
     public boolean isInCatchRange(Ghost ghost) {
         int distance = distanceToPoint(ghost.x, ghost.y);
         return distance >= GameParameters.CATCH_MIN_DISTANCE && distance <= GameParameters.CATCH_MAX_DISTANCE;
-    }
-
-    public Ghost findClosestAvailableGhost() {
-        return visibleGhosts.stream()
-                .min((g1, g2) -> Integer.compare(distanceToPoint(g1.x, g1.y), distanceToPoint(g2.x, g2.y)))
-                .orElse(null);
-    }
-
-    public Ghost findEasietAvailableGhost() {
-        return visibleGhosts.stream()
-                .filter(g -> g.available)
-                .sorted((g1, g2) -> Integer.compare(g1.state, g2.state))
-                .findFirst()
-                .orElse(null);
     }
 
     public Buster shouldStunAnEnemy() {
@@ -259,10 +251,6 @@ class Buster extends Entity {
         return new int[]{optimum.x, optimum.y};
     }
 
-    private boolean isBusting() {
-        return state == 3;
-    }
-
     public void resetVisibleGhosts() {
         visibleGhosts.clear();
     }
@@ -274,35 +262,6 @@ class Buster extends Entity {
     private boolean samePosition(int[] position) {
         return x == position[0] && y == position[1];
     }
-
-    public Ghost getClosestGhost(Collection<Ghost> ghosts) {
-        Ghost ghost = ghosts.stream()
-                .sorted((g1, g2) -> Integer.compare(distanceToPoint(g1.getPosition()),
-                        distanceToPoint(g2.getPosition())))
-                .findFirst().orElse(null);
-        return ghost;
-    }
-
-    public Ghost getEasietGhost(Collection<Ghost> ghosts) {
-        Ghost ghost = ghosts.stream()
-                .filter(g -> g.available)
-                .sorted((g1, g2) -> Integer.compare(g1.state,
-                        g2.state))
-                .findFirst().orElse(null);
-        return ghost;
-    }
-
-    /*
-     * public Ghost getClosestGhostAvailable(Collection<Ghost> ghosts) {
-     * Ghost ghost = ghosts.stream().filter(g -> g.available)
-     * .sorted((g1, g2) -> Integer.compare(distanceToPoint(g1.getPosition()), distanceToPoint(g2.getPosition())))
-     * .findFirst().orElse(null);
-     * if (ghost != null) {
-     * ghost.available = false;
-     * }
-     * return ghost;
-     * }
-     */
 
     private void updateNextExplorationDest(GameState gameState) {
         if (gameState.unknowPositions.size() == 0) {
@@ -336,7 +295,7 @@ class Buster extends Entity {
             if (newX >= 0 && newX < GameParameters.WIDTH && newY >= 0 && newY < GameParameters.HEIGHT && newX != x
                     && newY != y) {
                 found = true;
-                result = new int[] { newX, newY };
+                result = new int[]{newX, newY};
             } else {
                 startAngle++;
             }
@@ -359,7 +318,8 @@ class Buster extends Entity {
             gameState.removeGhost(value);
 
             // Release ghost if close enough
-            if (isCloseEnoughToBase(gameState.baseX, gameState.baseY)) {
+            if (isCloseEnoughToBase(gameState.getBasePosition())) {
+                gameState.releaseCount++;
                 move = "RELEASE (" + value + ")";
             }
         }
@@ -374,16 +334,25 @@ class Buster extends Entity {
             if (enemyToStun.isCarryingAGhost()) {
                 ghostToSteal = enemyToStun.getPosition();
             }
+
+            // Mark him as stunned
+            enemyToStun.state = 2;
         }
     }
 
-    public void updateMoveIfCatch() {
-        Ghost ghostToCatch = canCatchAGhost();
+    public void updateMoveIfCatch(GameState gameState) {
+        Ghost ghostToCatch = canCatchAGhostWithMaxStamina(gameState.getCurrentGhostThreshold());
         if (ghostToCatch != null) {
             ghostToCatch.busted();
-            ghostToCatch.available = false;
             move = "BUST " + ghostToCatch.id + " (" + id + " B : " + ghostToCatch.id + ")";
         }
+    }
+
+    private Ghost canCatchAGhostWithMaxStamina(int maxStamina) {
+        return visibleGhosts.stream().filter(ghost -> ghost.state <= maxStamina && isInCatchRange(ghost))
+                .sorted((g1, g2) -> Integer.compare(g1.state, g2.state))
+                .findFirst()
+                .orElse(null);
     }
 
     public void updateBackupMove(Ghost ghost) {
@@ -392,7 +361,6 @@ class Buster extends Entity {
 
     private String getMoveToGhost(Ghost ghost) {
         if (distanceToPoint(ghost.x, ghost.y) < GameParameters.CATCH_MIN_DISTANCE) {
-            ghost.available = false;
             // Too close
             int[] dest = getPointAtMinimalDistance(ghost, GameParameters.CATCH_MIN_DISTANCE);
             return "MOVE " + dest[0] + " " + dest[1];
@@ -401,27 +369,41 @@ class Buster extends Entity {
         }
     }
 
-    public void updateMoveIfCloseIn() {
-        Ghost ghostToSeek = findEasietAvailableGhost();
+    public void updateMoveIfCloseIn(GameState gameState) {
+        int currentObjective = gameState.getCurrentGhostThreshold();
+        Ghost ghostToSeek = findGhostInSight(currentObjective);
         if (ghostToSeek != null) {
-            ghostToSeek.available = false;
             move = getMoveToGhost(ghostToSeek) + " (CI " + ghostToSeek.id + ")";
         }
     }
 
+    private Ghost findGhostInSight(int maxStamina) {
+        return visibleGhosts.stream()
+                .filter(g -> g.state <= maxStamina)
+                .sorted((g1, g2) -> Integer.compare(g1.state, g2.state))
+                .findFirst()
+                .orElse(null);
+    }
+
     public void updateMoveIfKnownGhost(GameState gameState) {
-        Ghost ghost = getEasietGhost(gameState.ghosts.values());
+        Ghost ghost = tryToFindGhost(gameState);
         if (ghost != null) {
-            System.err.println(ghost);
             if (samePosition(ghost.getPosition())) {
                 // Ghost is not where we expected him to be, remove him for now
                 gameState.removeGhost(ghost.id);
             } else {
                 // Move to last ghost posistion
-                ghost.available = false;
                 move = "MOVE " + ghost.x + " " + ghost.y + " (F " + ghost.id + ")";
             }
         }
+    }
+
+    private Ghost tryToFindGhost(GameState gameState) {
+        int currentObjective = gameState.getCurrentGhostThreshold();
+        return gameState.ghosts.values().stream()
+                .filter(g -> g.state <= currentObjective)
+                .sorted((g1, g2) -> Integer.compare(g1.state, g2.state))
+                .findFirst().orElse(null);
     }
 
     public void updateMoveIfExploration(GameState gameState) {
@@ -433,6 +415,7 @@ class Buster extends Entity {
     public void updateMoveIfStuned() {
         if (!isActive()) {
             move = "MOVE " + x + " " + y + " (" + value + ")";
+            ghostToSteal = null;
         }
     }
 
@@ -441,23 +424,25 @@ class Buster extends Entity {
     }
 
     public void updateMoveIfGoBack(GameState gameState) {
-        if (isCarryingAGhost() && !isCloseEnoughToBase(gameState.baseX, gameState.baseY)) {
+        if (isCarryingAGhost()) {
             // Go back to base
             int[] dest = gameState.getBasePosition();
             move = "MOVE " + dest[0] + " " + dest[1] + " (Back)";
         }
     }
 
-    public void updateMoveIfHunt() {
+    public void updateMoveIfHunt(GameState gameState) {
         if (ghostToSteal != null) {
             int[] dest = getPointAtMinimalDistance(ghostToSteal[0], ghostToSteal[1],
                     GameParameters.CATCH_MAX_DISTANCE - 1);
-            move = "MOVE " + dest[0] + " " + dest[1] + " (H2)";
+            move = "MOVE " + dest[0] + " " + dest[1];
             ghostToSteal = null;
         } else {
             Buster enemyToHunt = visibleEnemies.stream()
                     .filter(enemy -> enemy.isCarryingAGhost()
-                            && distanceToPoint(enemy.getPosition()) <= GameParameters.STUN_MAX_DISTANCE)
+                            && distanceToPoint(enemy.getPosition()) <= GameParameters.STUN_MAX_DISTANCE
+                            && enemy.distanceToPoint(gameState.getEnemyBasePosition()) / 800 > stunReload
+                    )
                     .findFirst().orElse(null);
             if (enemyToHunt != null) {
                 move = "MOVE " + enemyToHunt.x + " " + enemyToHunt.y + " (H)";
@@ -539,15 +524,9 @@ class LineIterator implements Iterator<Point2D> {
 class Ghost extends Entity {
 
     int ownBusterCount = 0;
-    boolean available = true;
 
     public Ghost(int id, int x, int y, int type, int state, int value) {
         super(id, x, y, type, state, value);
-    }
-
-    public Ghost(int id, int x, int y, int type, int state, int value, boolean visible) {
-        super(id, x, y, type, state, value);
-        this.visible = visible;
     }
 
     public void update(Ghost ghost) {
@@ -557,7 +536,6 @@ class Ghost extends Entity {
         value = ghost.value;
         visible = ghost.visible;
         ownBusterCount = 0;
-        available = true;
     }
 
     public void busted() {
@@ -567,29 +545,44 @@ class Ghost extends Entity {
     public boolean needBackup() {
         return visible && ownBusterCount > 0 && ownBusterCount == value - ownBusterCount;
     }
+
+    @Override
+    public String toString() {
+        return "Ghost{" +
+                "id=" + id +
+                ", x=" + x +
+                ", y=" + y +
+                ", state=" + state +
+                ", value=" + value +
+                ", visible=" + visible +
+                ", ownBusterCount=" + ownBusterCount +
+                '}';
+    }
 }
 
 class GameState {
-    int baseX;
-    int baseY;
+    int[] basePosition;
+    int[] enemyBasePosition;
     int busterCount;
     int ghostCount;
     List<int[]> unknowPositions;
 
-    public GameState(int baseX, int baseY, int busterCount, int ghostCount) {
-        this.baseX = baseX;
-        this.baseY = baseY;
+    int currentTurn = 0;
+    int releaseCount = 0;
+
+    public GameState(int[] basePosition, int[] enemyBasePosition, int busterCount, int ghostCount) {
+        this.basePosition = basePosition;
+        this.enemyBasePosition = enemyBasePosition;
         this.busterCount = busterCount;
         this.ghostCount = ghostCount;
         resetUnknownPositions();
     }
 
     public void resetUnknownPositions() {
-        unknowPositions = new ArrayList<>(GameParameters.POSITIONS_TO_EXPLORE);
-        if (isBaseTopLeft()) {
-            unknowPositions.add(new int[] { 14666, 7500 });
+        if (currentTurn > 100) {
+            unknowPositions = new ArrayList<>(GameParameters.POSITIONS_TO_EXPLORE_LATE_GAME);
         } else {
-            unknowPositions.add(new int[] { 1333, 1500 });
+            unknowPositions = new ArrayList<>(GameParameters.POSITIONS_TO_EXPLORE);
         }
     }
 
@@ -600,22 +593,14 @@ class GameState {
 
     public void resetState() {
         enemyBusters.forEach((id, buster) -> buster.visible = false);
-        ghosts.forEach((id, ghost) -> ghost.visible = false);
+        ghosts.forEach((id, ghost) -> {
+            ghost.visible = false;
+        });
         myBusters.forEach((id, buster) -> {
             buster.resetVisibleGhosts();
             buster.resetVisibleEnemies();
             buster.resetMove();
         });
-    }
-
-    @Override
-    public String toString() {
-        return "GameState{" +
-                "baseX=" + baseX +
-                ", baseY=" + baseY +
-                ", ghostCount=" + ghostCount +
-                ", busterCount=" + busterCount +
-                '}';
     }
 
     public void updateBuster(Buster buster) {
@@ -657,15 +642,15 @@ class GameState {
     }
 
     public boolean isBaseTopLeft() {
-        return baseX == 0;
+        return basePosition[0] == 0;
     }
 
     public int[] getBasePosition() {
-        return new int[]{baseX, baseY};
+        return basePosition;
     }
 
-    public List<Ghost> getInvisibleGhosts() {
-        return ghosts.values().stream().filter(ghost -> !ghost.visible).collect(Collectors.toList());
+    public int[] getEnemyBasePosition() {
+        return enemyBasePosition;
     }
 
     public void removeGhost(int ghostId) {
@@ -673,12 +658,14 @@ class GameState {
     }
 
     public void updateMoves() {
-        // Update busters in reverseOrder
-        List<Buster> busters = myBusters.values().stream().sorted((b1, b2) -> Integer.compare(b1.id, b2.id))
-                .collect(Collectors.collectingAndThen(Collectors.toList(), l -> {
-                    Collections.reverse(l);
-                    return l;
-                }));
+        List<Buster> busters = myBusters.values().stream().collect(Collectors.toList());
+
+        if (currentTurn == 1) {
+            // Set initial moves
+            busters.stream().forEach(buster -> buster.currentExplorationDest = isBaseTopLeft() ?
+                    GameParameters.POSITION_TO_EXPLORE_FIRST_FROM_TOP.get(buster.id % busterCount)
+                    : GameParameters.POSITION_TO_EXPLORE_FIRST_FROM_BOTTOM.get(buster.id % busterCount));
+        }
 
         // Moves for stuned busters
         busters.stream().forEach(buster -> buster.updateMoveIfStuned());
@@ -689,32 +676,83 @@ class GameState {
         // Then set stun moves
         busters.stream().filter(buster -> buster.move == null).forEach(buster -> buster.updateMoveIfStun());
 
-        // Then set go back moves
-        busters.stream().filter(buster -> buster.move == null)
-                .forEach(buster -> buster.updateMoveIfGoBack(this));
+        if (keepAdvantage()) {
+            busters.stream().filter(buster -> buster.move == null && buster.isCarryingAGhost()).forEach(buster -> {
+                if (buster.distanceToPoint(16000, 0) > buster.distanceToPoint(0, 9000)) {
+                    buster.move = "MOVE " + 0 + " " + 9000;
+                } else {
+                    buster.move = "MOVE " + 16000 + " " + 0;
+                }
+            });
 
-        // Then set catch ghost moves
-        busters.stream().filter(buster -> buster.move == null).forEach(buster -> buster.updateMoveIfCatch());
-
-        // Then set hunt moves
-        busters.stream().filter(buster -> buster.move == null).forEach(buster -> buster.updateMoveIfHunt());
-
-        // Then set close in moves
-        busters.stream().filter(buster -> buster.move == null).forEach(buster -> buster.updateMoveIfCloseIn());
-
-        // Then check for backup moves
-        Ghost ghost = ghosts.values().stream().filter(g -> g.needBackup()).findFirst().orElse(null);
-        if (ghost != null) {
+            busters.stream().filter(buster -> buster.move == null).forEach(buster -> {
+                Buster busterToProtect = busters.stream().filter(b -> b.isCarryingAGhost()).findFirst().get();
+                if (busterToProtect.y < 4500) {
+                    buster.move = "MOVE " + 15500 + " " + 500;
+                } else {
+                    buster.move = "MOVE " + 500 + " " + 8500;
+                }
+            });
+        } else {
+            // Then set go back moves
             busters.stream().filter(buster -> buster.move == null)
-                    .sorted((b1, b2) -> Integer.compare(b1.distanceToPoint(ghost.x, ghost.y), b2.distanceToPoint(ghost.x, ghost.y)))
-                    .findFirst().ifPresent(buster -> buster.updateBackupMove(ghost));
+                    .forEach(buster -> buster.updateMoveIfGoBack(this));
+
+            // Then set catch ghost moves
+            busters.stream().filter(buster -> buster.move == null).forEach(buster -> buster.updateMoveIfCatch(this));
+
+            // Then set hunt moves
+            busters.stream().filter(buster -> buster.move == null).forEach(buster -> buster.updateMoveIfHunt(this));
+
+            // Then set intercept moves
+            enemyBusters.values().stream().filter(enemy -> enemy.isCarryingAGhost() && enemy.isActive()).forEach(enemyToIntercept -> {
+                busters.stream().filter(buster -> buster.move == null && buster.distanceToPoint(getEnemyBasePosition()) < enemyToIntercept.distanceToPoint(getEnemyBasePosition()))
+                        .sorted((b1, b2) -> Integer.compare(b1.distanceToPoint(getEnemyBasePosition()), b2.distanceToPoint(getEnemyBasePosition())))
+                        .findFirst().ifPresent(buster -> {
+                    if (isBaseTopLeft()) {
+                        buster.move = "MOVE " + 14500 + " " + 7500;
+                    } else {
+                        buster.move = "MOVE " + 1500 + " " + 1500;
+                    }
+                });
+            });
+
+
+            // Then set close in moves
+            busters.stream().filter(buster -> buster.move == null).forEach(buster -> buster.updateMoveIfCloseIn(this));
+
+            // Then check for backup moves
+            Ghost ghost = ghosts.values().stream().filter(g -> g.needBackup()).findFirst().orElse(null);
+            if (ghost != null) {
+                busters.stream().filter(buster -> buster.move == null)
+                        .sorted((b1, b2) -> Integer.compare(b1.distanceToPoint(ghost.x, ghost.y), b2.distanceToPoint(ghost.x, ghost.y)))
+                        .findFirst().ifPresent(buster -> buster.updateBackupMove(ghost));
+            }
+
+            // Then explore to last known ghost
+            busters.stream().filter(buster -> buster.move == null).forEach(buster -> buster.updateMoveIfKnownGhost(this));
+
+            // Then explore
+            busters.stream().filter(buster -> buster.move == null)
+                    .forEach(buster -> buster.updateMoveIfExploration(this));
         }
+    }
 
-        // Then explore to last known ghost
-        busters.stream().filter(buster -> buster.move == null).forEach(buster -> buster.updateMoveIfKnownGhost(this));
+    public void updateTurn() {
+        currentTurn++;
+    }
 
-        // Then explore
-        busters.stream().filter(buster -> buster.move == null)
-                .forEach(buster -> buster.updateMoveIfExploration(this));
+    public int getCurrentGhostThreshold() {
+        if (currentTurn < GameParameters.START_CATCHING_GHOST_15_AT_TURN) {
+            return 3;
+        } else if (currentTurn < GameParameters.START_CATCHING_GHOST_40_AT_TURN) {
+            return 15;
+        } else {
+            return 40;
+        }
+    }
+
+    public boolean keepAdvantage() {
+        return releaseCount + myBusters.values().stream().mapToInt(b -> b.isCarryingAGhost() ? 1 : 0).sum() > ghostCount / 2;
     }
 }
